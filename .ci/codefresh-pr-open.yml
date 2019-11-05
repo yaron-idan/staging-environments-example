@@ -69,7 +69,7 @@ steps:
       - GITHUB_CONTEXT=Live environment
       - GITHUB_STATE=success
       - GITHUB_DESCRIPTION=Deployed (${{CF_SHORT_REVISION}})
-      - GITHUB_TARGET_URL=${{DEPLOYMENT_URL}}
+      - GITHUB_TARGET_URL=${{DEPLOYMENT_URL}}/index.html
     when:
       steps:
         - name: publish_pull_request

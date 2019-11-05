@@ -14,7 +14,7 @@ service:
   type: ClusterIP
   externalPort: 80
   internalPort: 8080
-  isAlivePath: /healthcheck
+  isAlivePath: /index.html
 ingress:
   enabled: true
   path: /
