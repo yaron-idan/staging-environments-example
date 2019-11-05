@@ -1,0 +1,13 @@
+version: '1.0'
+stages:
+  - purge
+steps:
+   purge_pr_deployment:
+    stage: purge
+    title: Purging pr environment
+    image: 'dtzar/helm-kubectl:2.12.3'
+    commands:
+      - echo $CF_PULL_REQUEST_NUMBER is the pr number
+      - helm init -c
+      - kubectl config use-context AllDayDevOps
+      - if helm ls | grep -q ${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}}; then helm delete --purge ${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}}; else echo "${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}} wasn't found in the cluster"; fi  

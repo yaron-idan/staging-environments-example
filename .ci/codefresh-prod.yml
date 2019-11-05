@@ -1,0 +1,52 @@
+version: '1.0'
+stages:
+  - clone
+  - build
+  - push
+  - publish
+steps:
+  main_clone:
+    type: git-clone
+    description: Cloning main repository...
+    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+    revision: '${{CF_REVISION}}'
+    stage: clone
+    git: github
+    when:
+      branch:
+        only:
+        - master
+  build_image:
+    stage: build
+    title: Building Node Docker Image
+    type: build
+    image_name: '${{CF_REPO_NAME}}'
+    tag: '${{CF_REVISION}}'
+    working_directory: ./src
+  push_to_registry:
+    title: "Pushing image to production cr"
+    stage: push
+    type: "push"
+    image_name: '${{CF_REPO_NAME}}'
+    registry: ADDOExampleRegistry
+    candidate: ${{build_image}}
+    tag: "${{CF_REVISION}}"
+  publish_production:
+    stage: publish
+    image: 'dtzar/helm-kubectl:2.12.3'
+    title: Deploying to kubernetes cluster
+    commands:
+      - helm init -c
+      - kubectl config use-context AllDayDevOps
+      - if helm ls | grep -q ${{CF_REPO_NAME}}; then helm delete --purge ${{CF_REPO_NAME}}; else echo "${{CF_REPO_NAME}} wasn't found in the cluster"; fi  
+      - >-
+        helm install 
+        --name ${{CF_REPO_NAME}} 
+        --set image.version=${{CF_REVISION}},image.name=${{CF_REPO_NAME}}
+        --namespace devops
+        .
+    when:
+      steps:
+        - name: main_clone
+          on:
+            - success

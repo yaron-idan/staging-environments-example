@@ -1,0 +1,77 @@
+version: '1.0'
+stages:
+  - clone
+  - build
+  - push
+  - publish
+  - demo
+steps:
+  main_clone:
+    type: git-clone
+    description: Cloning main repository...
+    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+    revision: '${{CF_REVISION}}'
+    stage: clone
+    git: github
+    when:
+      condition:
+        all:
+          prClosed: '"${{CF_PULL_REQUEST_ACTION}}" != "closed"'
+  build_image:
+    stage: build
+    title: Building Node Docker Image
+    type: build
+    image_name: '${{CF_REPO_NAME}}'
+    tag: '${{CF_REVISION}}'
+    working_directory: ./src
+    when:
+      steps:
+        - name: main_clone
+          on:
+            - success
+  push_to_registry:
+    title: "Pushing image to production cr"
+    stage: push
+    type: "push"
+    image_name: '${{CF_REPO_NAME}}'
+    registry: ADDOExampleRegistry
+    candidate: ${{build_image}}
+    tag: "${{CF_REVISION}}"
+  publish_pull_request:
+    stage: publish
+    image: 'dtzar/helm-kubectl:2.12.3'
+    title: Deploying to staging environment
+    commands:
+      - printenv
+      - echo $CF_PULL_REQUEST_NUMBER is the pr number
+      - helm init -c
+      - kubectl config use-context AllDayDevOps
+      - if helm ls | grep -q ${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}}; then helm delete --purge ${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}}; else echo "${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}} wasn't found in the cluster"; fi  
+      - >-
+        helm install  
+        --name ${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}} .
+        --set image.version=${{CF_REVISION}},image.name=${{CF_REPO_NAME}},environment=pr-${{CF_PULL_REQUEST_NUMBER}}
+        --namespace devops > output.data
+      - cat output.data
+      - sleep 5
+      - kubectl rollout status deployment/${{CF_REPO_NAME}}-pr-${{CF_PULL_REQUEST_NUMBER}} --namespace=devops --timeout 10s
+      - "cf_export DEPLOYMENT_URL=$(cat output.data | grep http:// | sed 's/\"//g' | xargs)"
+  set_deploy_status:
+    title: Update staging env details
+    image: cloudposse/github-status-updater
+    stage: demo
+    environment:
+      - GITHUB_ACTION=update_state
+      - GITHUB_TOKEN=${{GITHUB_TOKEN}}
+      - GITHUB_OWNER=${{CF_REPO_OWNER}}
+      - GITHUB_REPO=${{CF_REPO_NAME}}
+      - GITHUB_REF=${{CF_REVISION}}
+      - GITHUB_CONTEXT=Live environment
+      - GITHUB_STATE=success
+      - GITHUB_DESCRIPTION=Deployed (${{CF_SHORT_REVISION}})
+      - GITHUB_TARGET_URL=${{DEPLOYMENT_URL}}
+    when:
+      steps:
+        - name: publish_pull_request
+          on: 
+          - success

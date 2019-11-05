@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Staging environment helm chart (ADDO 2019)
+name: staging-environments-example 
+version: 0.1.0

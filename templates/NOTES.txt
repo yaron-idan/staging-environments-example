@@ -1,0 +1,20 @@
+//TODO: Make notes print the staging url when deploying staging
+{{- $environment := .Values.environment -}}
+{{- $hostsWithEnv := dict "myhosts" (list) -}}
+{{- range $host := .Values.ingress.hosts -}}
+{{- if eq $environment "production" }}
+{{- $var := printf "%s" $host | append $hostsWithEnv.myhosts | set $hostsWithEnv "myhosts" -}}
+{{- else }}
+{{- $subdomain := initial (initial (splitList "." $host)) | join "." }}
+{{- $topLevelDomain := last (splitList "." $host) }}
+{{- $secondLevelDomain := last (initial (splitList "." $host)) }}    
+{{- $var := printf "%s-%s.staging.%s.%s" $subdomain $environment $secondLevelDomain $topLevelDomain | append $hostsWithEnv.myhosts | set $hostsWithEnv "myhosts" -}}
+{{- end }}
+{{- end }}
+
+1. You can visit your application by visiting this URL:
+{{- range $key, $value := $hostsWithEnv }}
+{{- range $hostAndEnv := $value }}
+  http://{{ $hostAndEnv }}
+{{- end }}
+{{- end }}

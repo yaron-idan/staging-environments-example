@@ -1,0 +1,36 @@
+environment: production
+replicaCount: 2
+revisionHistoryLimit: 5
+imagePullSecrets: addoexampleregistry
+image:
+  version: latest
+  name: staging-environment-example
+  repository: addoexampleregistry.azurecr.io
+  pullPolicy: IfNotPresent
+pod: 
+  container: {}
+service:
+  protocol: http
+  type: ClusterIP
+  externalPort: 80
+  internalPort: 8080
+  isAlivePath: /healthcheck
+ingress:
+  enabled: true
+  path: /
+  hosts:
+    - app.example.com
+  tls:
+    secretName: tls-secret
+    prSecretName: tls-secret
+resources:
+  limits:
+   cpu: 500m
+   memory: 600Mi
+  requests:
+   cpu: 100m
+   memory: 128Mi
+autoscale:
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPU: 90

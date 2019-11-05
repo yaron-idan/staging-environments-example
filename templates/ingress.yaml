@@ -1,0 +1,51 @@
+{{- if .Values.ingress.enabled -}}
+{{- $serviceName := include "web-api.name" . -}}
+{{- $servicePort := .Values.service.externalPort -}}
+{{- $servicePath := .Values.ingress.path | default "/" -}}
+{{- $environment := .Values.environment -}}
+
+{{- $hostsWithEnv := dict "myhosts" (list) -}}
+{{- range $host := .Values.ingress.hosts -}}
+{{- if eq $environment "production" }}
+{{- $var := printf "%s" $host | append $hostsWithEnv.myhosts | set $hostsWithEnv "myhosts" -}}
+{{- else }}
+{{- $subdomain := initial (initial (splitList "." $host)) | join "." }}
+{{- $topLevelDomain := last (splitList "." $host) }}
+{{- $secondLevelDomain := last (initial (splitList "." $host)) }}    
+{{- $var := printf "%s-%s.staging.%s.%s" $subdomain $environment $secondLevelDomain $topLevelDomain | append $hostsWithEnv.myhosts | set $hostsWithEnv "myhosts" -}}
+{{- end }}
+{{- end }}
+
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "web-api.name" . }}
+  namespace: {{ .Values.team }}
+  labels:
+    app: {{ template "web-api.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    environment: {{ $environment }}
+spec:
+  rules:
+    {{- range $key, $value := $hostsWithEnv }}
+    {{- range $hostAndEnv := $value }}
+    - host: {{ $hostAndEnv }}
+      http:
+        paths:
+          - path: {{ $servicePath }}
+            backend:
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+    {{- end }}
+    {{- end }}
+  tls:
+    - hosts:
+    {{- range $key, $value := $hostsWithEnv }}
+    {{- range $hostAndEnv := $value }}
+      - {{ $hostAndEnv }}
+    {{- end }}
+    {{- end }}
+      secretName: {{ template "web-api.tlsSecretName" . }}
+{{- end -}}
